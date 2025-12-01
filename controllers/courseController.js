@@ -6,15 +6,25 @@ import Course from "../models/Course.js";
 export const createCourse = async (req, res) => {
   try {
     const teacherId = req.user._id;
-    const { name, description } = req.body;
+    const { name, description, price, discountPrice, duration } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Course name is required" });
     }
 
+    // NEW: Required validation for new fields
+    if (!price || !discountPrice || !duration) {
+      return res.status(400).json({
+        message: "price, actualPrice and duration are required"
+      });
+    }
+
     const course = await Course.create({
       name,
       description: description || "",
+      price,          // NEW
+      discountPrice,    // NEW
+      duration,       // NEW
       teacher: teacherId,
     });
 
@@ -74,7 +84,7 @@ export const editCourse = async (req, res) => {
   try {
     const teacherId = req.user._id;
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, price, discountPrice, duration } = req.body;
 
     const course = await Course.findOne({ _id: id, teacher: teacherId });
 
@@ -84,6 +94,11 @@ export const editCourse = async (req, res) => {
 
     if (name) course.name = name;
     if (description !== undefined) course.description = description;
+
+    // NEW: Allow updating new fields
+    if (price !== undefined) course.price = price;
+    if (discountPrice !== undefined) course.actualPrice = actualPrice;
+    if (duration !== undefined) course.duration = duration;
 
     await course.save();
 
