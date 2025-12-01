@@ -7,7 +7,8 @@ import {
   deleteAttendance,
   markAttendance,
   getAttendanceByDate,
-  attendanceHistory
+  attendanceHistory,
+  getStudentAttendanceHistory   // ✅ NEW IMPORT
 } from "../controllers/attendanceController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
@@ -17,6 +18,13 @@ const router = express.Router();
 router.post("/mark", authMiddleware, markAttendance);
 router.get("/get/:classroomId", authMiddleware, getAttendanceByDate); // ?date=YYYY-MM-DD
 router.get("/history/:classroomId", authMiddleware, attendanceHistory); // optional ?from & ?to
+
+// ✅ NEW: student-wise attendance history
+router.get(
+  "/history/student/:studentId",
+  authMiddleware,
+  getStudentAttendanceHistory
+);
 
 // Standard CRUD endpoints
 router.post("/", authMiddleware, createAttendance);        // Create

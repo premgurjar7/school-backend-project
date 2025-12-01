@@ -5,15 +5,26 @@ export const markAttendance = async (req, res) => {
   try {
     const teacherId = req.user._1d || req.user._id; // safe access
     const { classroomId, date, attendance } = req.body;
-    if (!classroomId || !date || !Array.isArray(attendance)) return res.status(400).json({ message: "classroomId, date and attendance array required" });
+    if (!classroomId || !date || !Array.isArray(attendance))
+      return res.status(400).json({ message: "classroomId, date and attendance array required" });
 
     const studentIds = attendance.map(a => a.studentId);
-    const validCount = await Student.countDocuments({ _id: { $in: studentIds }, classroom: classroomId, teacher: teacherId });
-    if (validCount !== studentIds.length) return res.status(400).json({ message: "Some student IDs invalid for this classroom" });
+    const validCount = await Student.countDocuments({
+      _id: { $in: studentIds },
+      classroom: classroomId,
+      teacher: teacherId
+    });
+    if (validCount !== studentIds.length)
+      return res.status(400).json({ message: "Some student IDs invalid for this classroom" });
 
     const doc = await Attendance.findOneAndUpdate(
       { classroom: classroomId, date },
-      { classroom: classroomId, teacher: teacherId, date, attendance: attendance.map(a => ({ student: a.studentId, status: a.status })) },
+      {
+        classroom: classroomId,
+        teacher: teacherId,
+        date,
+        attendance: attendance.map(a => ({ student: a.studentId, status: a.status }))
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
@@ -31,8 +42,11 @@ export const getAttendanceByDate = async (req, res) => {
     const date = req.query.date;
     if (!date) return res.status(400).json({ message: "date query param required (YYYY-MM-DD)" });
 
-    const doc = await Attendance.findOne({ classroom: classroomId, date, teacher: teacherId })
-      .populate({ path: "attendance.student", select: "name rollNo" });
+    const doc = await Attendance.findOne({
+      classroom: classroomId,
+      date,
+      teacher: teacherId
+    }).populate({ path: "attendance.student", select: "name rollNo" });
 
     if (!doc) return res.json({ attendance: [] });
     res.json({ attendance: doc.attendance });
@@ -55,11 +69,14 @@ export const attendanceHistory = async (req, res) => {
       if (to) match.date.$lte = to;
     }
 
-    const docs = await Attendance.find(match).sort({ date: -1 })
+    const docs = await Attendance.find(match)
+      .sort({ date: -1 })
       .populate({ path: "attendance.student", select: "name rollNo" });
 
     const result = docs.map(d => {
-      const present = d.attendance.filter(a => a.status === "present" || a.status === "late" || a.status === "half").length;
+      const present = d.attendance.filter(
+        a => a.status === "present" || a.status === "late" || a.status === "half"
+      ).length;
       const absent = d.attendance.length - present;
       return {
         id: d._id,
@@ -78,6 +95,45 @@ export const attendanceHistory = async (req, res) => {
   }
 };
 
+/**
+ * ✅ Student ki attendance history (studentId se)
+ */
+export const getStudentAttendanceHistory = async (req, res) => {
+  try {
+    const teacherId = req.user._id;
+    const { studentId } = req.params;
+
+    // sirf wahi records jahan is student ki entry ho
+    const docs = await Attendance.find({
+      teacher: teacherId,
+      "attendance.student": studentId
+    })
+      .sort({ date: -1 })
+      .lean();
+
+    const history = [];
+
+    for (const d of docs) {
+      const found = d.attendance.find(
+        (item) => String(item.student) === String(studentId)
+      );
+      if (found) {
+        history.push({
+          date: d.date,
+          status: found.status,
+          classroom: d.classroom,
+          id: d._id
+        });
+      }
+    }
+
+    return res.json({ history });
+  } catch (err) {
+    console.error("getStudentAttendanceHistory Error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 /* ---------------------------
    Added standard CRUD handlers
    --------------------------- */
@@ -87,7 +143,9 @@ export const createAttendance = async (req, res) => {
   try {
     const { classroom, date, attendance } = req.body;
     if (!classroom || !date || !Array.isArray(attendance)) {
-      return res.status(400).json({ message: "classroom, date and attendance array required" });
+      return res
+        .status(400)
+        .json({ message: "classroom, date and attendance array required" });
     }
 
     // optional: associate teacher from auth
@@ -101,7 +159,10 @@ export const createAttendance = async (req, res) => {
     });
 
     const saved = await doc.save();
-    const populated = await Attendance.findById(saved._id).populate({ path: "attendance.student", select: "name rollNo" });
+    const populated = await Attendance.findById(saved._id).populate({
+      path: "attendance.student",
+      select: "name rollNo"
+    });
 
     return res.status(201).json(populated);
   } catch (err) {
@@ -129,7 +190,10 @@ export const listAttendances = async (req, res) => {
     }
 
     const [items, total] = await Promise.all([
-      Attendance.find(filter).sort({ date: -1 }).skip(skip).limit(limit)
+      Attendance.find(filter)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit)
         .populate({ path: "attendance.student", select: "name rollNo" })
         .lean(),
       Attendance.countDocuments(filter)
@@ -151,14 +215,18 @@ export const getAttendanceById = async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ message: "id param required" });
 
-    const doc = await Attendance.findById(id).populate({ path: "attendance.student", select: "name rollNo" });
+    const doc = await Attendance.findById(id).populate({
+      path: "attendance.student",
+      select: "name rollNo"
+    });
     if (!doc) return res.status(404).json({ message: "Attendance record not found" });
 
     return res.status(200).json(doc);
   } catch (err) {
     console.error("GetAttendanceById Error:", err);
     // handle invalid ObjectId cast
-    if (err.name === "CastError") return res.status(400).json({ message: "Invalid ID format" });
+    if (err.name === "CastError")
+      return res.status(400).json({ message: "Invalid ID format" });
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -175,20 +243,27 @@ export const updateAttendance = async (req, res) => {
     }
 
     if (updates.attendance) {
-      updates.attendance = updates.attendance.map(a => ({ student: a.student, status: a.status }));
+      updates.attendance = updates.attendance.map(a => ({
+        student: a.student,
+        status: a.status
+      }));
     }
 
     updates.updatedAt = Date.now?.() || Date.now();
 
-    const updated = await Attendance.findByIdAndUpdate(id, updates, { new: true, runValidators: true })
-      .populate({ path: "attendance.student", select: "name rollNo" });
+    const updated = await Attendance.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true
+    }).populate({ path: "attendance.student", select: "name rollNo" });
 
-    if (!updated) return res.status(404).json({ message: "Attendance record not found" });
+    if (!updated)
+      return res.status(404).json({ message: "Attendance record not found" });
 
     return res.status(200).json(updated);
   } catch (err) {
     console.error("UpdateAttendance Error:", err);
-    if (err.name === "CastError") return res.status(400).json({ message: "Invalid ID format" });
+    if (err.name === "CastError")
+      return res.status(400).json({ message: "Invalid ID format" });
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -200,12 +275,16 @@ export const deleteAttendance = async (req, res) => {
     if (!id) return res.status(400).json({ message: "id param required" });
 
     const deleted = await Attendance.findByIdAndDelete(id).lean();
-    if (!deleted) return res.status(404).json({ message: "Attendance record not found" });
+    if (!deleted)
+      return res.status(404).json({ message: "Attendance record not found" });
 
-    return res.status(200).json({ message: "Attendance deleted", data: deleted });
+    return res
+      .status(200)
+      .json({ message: "Attendance deleted", data: deleted });
   } catch (err) {
     console.error("DeleteAttendance Error:", err);
-    if (err.name === "CastError") return res.status(400).json({ message: "Invalid ID format" });
+    if (err.name === "CastError")
+      return res.status(400).json({ message: "Invalid ID format" });
     return res.status(500).json({ message: "Server error" });
   }
 };
