@@ -4,11 +4,14 @@ import Classroom from "../models/Classroom.js";
 export const createStudent = async (req, res) => {
   try {
     const teacherId = req.user._id;
-    const { name, rollNo, classroomId, extra } = req.body;
-    if (!name || !rollNo || !classroomId)
+
+    // 👇 NEW FIELDS added here
+    const { name, rollNo, classroomId, email, fatherName, joinDate, extra } = req.body;
+
+    if (!name || !rollNo || !classroomId || !email)
       return res
         .status(400)
-        .json({ message: "name, rollNo and classroomId required" });
+        .json({ message: "name, rollNo, email and classroomId required" });
 
     // verify classroom belongs to teacher
     const cls = await Classroom.findOne({ _id: classroomId, teacher: teacherId });
@@ -17,6 +20,9 @@ export const createStudent = async (req, res) => {
     const student = await Student.create({
       name,
       rollNo,
+      email,             // NEW
+      fatherName,        // NEW
+      joinDate: joinDate || Date.now(),  // NEW
       classroom: classroomId,
       teacher: teacherId,
       extra: extra || {},
@@ -48,7 +54,7 @@ export const listStudentsByClass = async (req, res) => {
   }
 };
 
-// ✅ NEW: saare students (sirf current teacher ke)
+// NEW: All students of this teacher
 export const listAllStudents = async (req, res) => {
   try {
     const teacherId = req.user._id;
@@ -65,13 +71,18 @@ export const editStudent = async (req, res) => {
   try {
     const teacherId = req.user._id;
     const { id } = req.params;
-    const { name, rollNo, extra } = req.body;
+
+    // 👇 Added new fields (optional)
+    const { name, rollNo, email, fatherName, joinDate, extra } = req.body;
 
     const student = await Student.findOne({ _id: id, teacher: teacherId });
     if (!student) return res.status(404).json({ message: "Student not found" });
 
     if (name) student.name = name;
     if (rollNo) student.rollNo = rollNo;
+    if (email) student.email = email;                 
+    if (fatherName) student.fatherName = fatherName;   
+    if (joinDate) student.joinDate = joinDate;         
     if (extra) student.extra = extra;
 
     await student.save();
@@ -100,9 +111,7 @@ export const deleteStudent = async (req, res) => {
   }
 };
 
-/* -------------------------------
-   🔵 Get Student
-   ------------------------------- */
+// Get Student
 export const getStudent = async (req, res) => {
   try {
     const teacherId = req.user._id;
